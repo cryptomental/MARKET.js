@@ -29,6 +29,6 @@ script:
   - docker-compose exec marketjs npm run build
   - docker-compose exec marketjs env TRUFFLE_DEVELOP_HOST="$TRUFFLE_DEVELOP_HOST" npm run test:prod
 after_success:
-  - docker-compose exec marketjs env TRAVIS_JOB_ID="$TRAVIS_JOB_ID" TRAVIS_BRANCH="$TRAVIS_BRANCH" TRAVIS_PULL_REQUEST="$TRAVIS_PULL_REQUEST" npm run report-coverage
+  - docker-compose exec marketjs env TRAVIS=true TRAVIS_JOB_ID="$TRAVIS_JOB_ID" TRAVIS_BRANCH="$TRAVIS_BRANCH" TRAVIS_PULL_REQUEST="$TRAVIS_PULL_REQUEST" npm run report-coverage
 #  - docker-compose exec marketjs npm run deploy-docs
 #  - docker-compose exec marketjs npm run semantic-release
