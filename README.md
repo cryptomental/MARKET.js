@@ -109,6 +109,50 @@ If all of this is set up correctly, the below should work.
 $ npm run test
 ```
 
+## Using Docker
+
+It is possible to build and execute tests in the same way as in Travis CI by using Docker orchestration.
+
+Prerequisites: docker and docker-compose installed.
+
+### Running tests
+
+#### Import environment variables
+
+```
+set -a
+source .env
+```
+
+#### Start containers
+
+```
+docker-compose up -d
+```
+
+The first run will take a while since images will be pulled from Docker registry. After that images are cached and the start will be much faster.
+
+
+#### Install dependencies
+
+```
+docker-compose exec marketjs npm install
+docker-compose exec eth-bridge scripts/wait_for_oraclize_connector.sh
+```
+
+#### Build
+
+```
+docker-compose exec marketjs truffle migrate
+docker-compose exec marketjs npm run build
+```
+
+#### Start tests
+
+```
+docker-compose exec marketjs env TRUFFLE_DEVELOP_HOST="$TRUFFLE_DEVELOP_HOST" npm run test:prod
+```
+
 
 ## Importing library
 
