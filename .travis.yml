@@ -1,4 +1,6 @@
 language: node_js
+services:
+  - docker
 branches:
   only:
     - master
@@ -11,9 +13,22 @@ notifications:
   email: false
 node_js:
   - lts/*
+env:
+  - TRUFFLE_DEVELOP_HOST=marketjs TRUFFLE_DEVELOP_PORT=9545
+before_install:
+  - pwd
+  - docker-compose up -d
+  - docker-compose --version
+  - docker-compose ps
+install:
+  - docker-compose exec marketjs npm install
 script:
-  - npm run build && npm run test:prod
+  - docker-compose exec eth-bridge scripts/wait_for_oraclize_connector.sh
+  - docker-compose logs eth-bridge
+  - docker-compose exec marketjs truffle migrate
+  - docker-compose exec marketjs npm run build
+  - docker-compose exec marketjs env TRUFFLE_DEVELOP_HOST="$TRUFFLE_DEVELOP_HOST" npm run test:prod
 after_success:
-  - npm run report-coverage
-  - npm run deploy-docs
-  - npm run semantic-release
+  - docker-compose exec marketjs env TRAVIS_JOB_ID="$TRAVIS_JOB_ID" TRAVIS_BRANCH="$TRAVIS_BRANCH" TRAVIS_PULL_REQUEST="$TRAVIS_PULL_REQUEST" npm run report-coverage
+  - docker-compose exec marketjs npm run deploy-docs
+  - docker-compose exec marketjs npm run semantic-release
