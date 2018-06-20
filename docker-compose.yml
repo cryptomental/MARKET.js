@@ -1,0 +1,37 @@
+version: '3.4'
+services:
+  marketjs:
+    build:
+      context: .
+    image: market-js
+    command: truffle develop
+    tmpfs:
+      - /app/build
+      - /app/node_modules:exec,mode=777
+    volumes:
+      - type: bind
+        source: ./
+        target: /app
+    tty: true
+    stdin_open: true
+
+  eth-bridge:
+    image: cryptomental/ethereum-bridge:latest
+    entrypoint: >
+      /bin/bash -c "
+        while ! curl ${TRUFFLE_DEVELOP_HOST}:${TRUFFLE_DEVELOP_PORT} &>/dev/null;
+        do
+          echo Waiting for Ethereum node...;
+          sleep 1;
+        done;
+        echo Ethereum node ready, connecting the Oraclize Bridge!;
+        sleep 1;
+        echo Wiping old configs...;
+        rm -rf /ethereum-bridge/config/instance/*;
+        node bridge -H ${TRUFFLE_DEVELOP_HOST}:${TRUFFLE_DEVELOP_PORT} -a 9 --dev;
+      "
+    restart: unless-stopped
+    depends_on:
+      - marketjs
+    links:
+      - marketjs
