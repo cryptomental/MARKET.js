@@ -6,9 +6,9 @@ export interface Order {
   feeRecipient: string;
   maker: string;
   makerFee: BigNumber;
-  orderQty: number;
+  orderQty: BigNumber;
   price: BigNumber;
-  remainingQty: number;
+  remainingQty: BigNumber;
   salt: BigNumber;
   taker: string;
   takerFee: BigNumber;

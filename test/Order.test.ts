@@ -17,13 +17,13 @@ import { BigNumber } from 'bignumber.js';
 import { depositCollateralAsync, getUserAccountBalanceAsync } from '../src/lib/Collateral';
 import { constants } from '../src/constants';
 
-const TRUFFLE_NETWORK_ID = `4447`;
-const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:9545'));
-
 /**
  * Order
  */
 describe('Order', () => {
+  const TRUFFLE_NETWORK_ID = `4447`;
+  const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:9545'));
+
   it('Signs an order', async () => {
     const marketContractRegistryAddress = getContractAddress(
       'MarketContractRegistry',
@@ -250,10 +250,11 @@ describe('Order', () => {
       )
     ).toBe(true);
 
-    expect(await tradeOrderAsync(web3.currentProvider, signedOrder, new BigNumber(2), {
-      from: taker,
-      gas: 400000
-    })).toEqual(new BigNumber(2));
-
+    expect(
+      await tradeOrderAsync(web3.currentProvider, signedOrder, new BigNumber(2), {
+        from: taker,
+        gas: 400000
+      })
+    ).toEqual(new BigNumber(2));
   });
 });

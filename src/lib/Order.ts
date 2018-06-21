@@ -1,7 +1,4 @@
 import Web3 from 'web3';
-
-// import { assert } from '../assert';
-// import { schemas } from '../schemas/';
 import { Utils } from './Utils';
 
 // Types
@@ -45,6 +42,76 @@ export async function createOrderHashAsync(
       console.error(err);
       return error;
     });
+}
+
+/***
+ * Creates and signs a new order given the arguments provided
+ * @param {Provider} provider               Web3 provider instance.
+ * @param {string} orderLibAddress          address of the deployed OrderLib.sol
+ * @param {string} contractAddress          address of the deployed MarketContract.sol
+ * @param {BigNumber} expirationTimestamp   unix timestamp
+ * @param {string} feeRecipient             address of account to receive fees
+ * @param {string} maker                    address of maker account
+ * @param {BigNumber} makerFee              fee amount for maker to pay
+ * @param {string} taker                    address of taker account
+ * @param {BigNumber} takerFee              fee amount for taker to pay
+ * @param {BigNumber} orderQty              qty of Order
+ * @param {BigNumber} price                 price of Order
+ * @param {BigNumber} remainingQty          qty remaining
+ * @param {BigNumber} salt                  used to ensure unique order hashes
+ * @return {Promise<SignedOrder>}
+ */
+export async function createSignedOrderAsync(
+  provider: Provider,
+  orderLibAddress: string,
+  contractAddress: string,
+  expirationTimestamp: BigNumber,
+  feeRecipient: string,
+  maker: string,
+  makerFee: BigNumber,
+  taker: string,
+  takerFee: BigNumber,
+  orderQty: BigNumber,
+  price: BigNumber,
+  remainingQty: BigNumber,
+  salt: BigNumber
+): Promise<SignedOrder> {
+  const order: Order = {
+    contractAddress: contractAddress,
+    expirationTimestamp: expirationTimestamp, // '', makerAccount, 0, 1, 100000, 1, '', 0
+    feeRecipient: feeRecipient,
+    maker: maker,
+    makerFee: makerFee,
+    orderQty: orderQty,
+    price: price,
+    remainingQty: remainingQty,
+    salt: salt,
+    taker: taker,
+    takerFee: takerFee
+  };
+
+  const orderHash: string | BigNumber = await createOrderHashAsync(
+    provider,
+    orderLibAddress,
+    order
+  );
+
+  const signedOrder: SignedOrder = {
+    contractAddress: contractAddress,
+    expirationTimestamp: expirationTimestamp,
+    feeRecipient: feeRecipient,
+    maker: maker,
+    makerFee: makerFee,
+    orderQty: orderQty,
+    price: price,
+    remainingQty: remainingQty,
+    salt: salt,
+    taker: taker,
+    takerFee: takerFee,
+    ecSignature: await signOrderHashAsync(provider, String(orderHash), maker)
+  };
+
+  return signedOrder;
 }
 
 /**

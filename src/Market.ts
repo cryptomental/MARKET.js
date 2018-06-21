@@ -22,7 +22,12 @@ import {
   deployMarketContractOraclizeAsync
 } from './lib/Deployment';
 
-import { createOrderHashAsync, signOrderHashAsync, tradeOrderAsync } from './lib/Order';
+import {
+  createOrderHashAsync,
+  createSignedOrderAsync,
+  signOrderHashAsync,
+  tradeOrderAsync
+} from './lib/Order';
 
 /**
  * The `Market` class is the single entry-point into the MARKET.js library.
@@ -239,6 +244,53 @@ export class Market {
    */
   public async signOrderHashAsync(orderHash: string, signerAddress: string): Promise<ECSignature> {
     return signOrderHashAsync(this._web3.currentProvider, orderHash, signerAddress);
+  }
+
+  /***
+   * Creates and signs a new order given the arguments provided
+   * @param {string} orderLibAddress          address of the deployed OrderLib.sol
+   * @param {string} contractAddress          address of the deployed MarketContract.sol
+   * @param {BigNumber} expirationTimestamp   unix timestamp
+   * @param {string} feeRecipient             address of account to receive fees
+   * @param {string} maker                    address of maker account
+   * @param {BigNumber} makerFee              fee amount for maker to pay
+   * @param {string} taker                    address of taker account
+   * @param {BigNumber} takerFee              fee amount for taker to pay
+   * @param {BigNumber} orderQty              qty of Order
+   * @param {BigNumber} price                 price of Order
+   * @param {BigNumber} remainingQty          qty remaining
+   * @param {BigNumber} salt                  used to ensure unique order hashes
+   * @return {Promise<SignedOrder>}
+   */
+  public async createSignedOrderAsync(
+    orderLibAddress: string,
+    contractAddress: string,
+    expirationTimestamp: BigNumber,
+    feeRecipient: string,
+    maker: string,
+    makerFee: BigNumber,
+    taker: string,
+    takerFee: BigNumber,
+    orderQty: BigNumber,
+    price: BigNumber,
+    remainingQty: BigNumber,
+    salt: BigNumber
+  ): Promise<SignedOrder> {
+    return createSignedOrderAsync(
+      this._web3.currentProvider,
+      orderLibAddress,
+      contractAddress,
+      expirationTimestamp,
+      feeRecipient,
+      maker,
+      makerFee,
+      taker,
+      takerFee,
+      orderQty,
+      price,
+      remainingQty,
+      salt
+    );
   }
 
   /**

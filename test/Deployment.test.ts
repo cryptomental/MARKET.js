@@ -15,12 +15,12 @@ import {
   MarketContractOraclize
 } from '@marketprotocol/types';
 
-const TRUFFLE_NETWORK_ID = `4447`;
-const GAS_LIMIT = 4000000;
-const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:9545'));
-let deployMarketContract: MarketContractOraclize;
-
 describe('Deployment Tests', () => {
+  const TRUFFLE_NETWORK_ID = `4447`;
+  const GAS_LIMIT = 4000000;
+  const web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:9545'));
+  let deployMarketContract: MarketContractOraclize;
+
   it('Deploys a MARKET Contract Correctly', async () => {
     const factoryAddress = getContractAddress('MarketContractFactoryOraclize', TRUFFLE_NETWORK_ID);
     const collateralTokenAddress = getContractAddress('CollateralToken', TRUFFLE_NETWORK_ID);
