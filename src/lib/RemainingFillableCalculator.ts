@@ -10,14 +10,36 @@ export class RemainingFillableCalculator {
   private _transferrableMakerFeeTokenAmount: BigNumber;
   private _remainingMakerTokenAmount: BigNumber;
   private _remainingMakerFeeAmount: BigNumber;
+  private _collateralPoolContractAddress: string;
 
   constructor(
+    /* Signed Order provides:
+     *    contractAddress: contractAddress,
+     *    expirationTimestamp: expirationTimestamp,
+     *    feeRecipient: feeRecipient,
+     *    maker: maker,
+     *    makerFee: makerFee,
+     *    orderQty: orderQty,
+     *    price: price,
+     *    remainingQty: remainingQty,
+     *    salt: salt,
+     *    taker: taker,
+     *    takerFee: takerFee,
+     *    ecSignature:
+     */
+    /* getUserAccountBalanceAsync(collateralPoolContractAddress: string,
+                                   userAddress: string) : Promise<BigNumber>
+        provides unallocated token balance for a user.
+
+     */
     signedOrder: SignedOrder,
+    collateralPoolContractAddress: string,
     transferrableMakerTokenAmount: BigNumber,
     transferrableMakerFeeTokenAmount: BigNumber,
     remainingMakerTokenAmount: BigNumber
   ) {
     this._signedOrder = signedOrder;
+    this._collateralPoolContractAddress = collateralPoolContractAddress;
     this._transferrableMakerTokenAmount = transferrableMakerTokenAmount;
     this._transferrableMakerFeeTokenAmount = transferrableMakerFeeTokenAmount;
     this._remainingMakerTokenAmount = remainingMakerTokenAmount;
