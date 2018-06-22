@@ -1,3 +1,5 @@
+import { BigNumber } from 'bignumber.js';
+
 /**
  * A calculator that allows to determine if an order is valid.
  * Returns fillable order qty available to Maker and Taker,
