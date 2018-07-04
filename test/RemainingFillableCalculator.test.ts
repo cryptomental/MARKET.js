@@ -5,7 +5,9 @@ import {
   ERC20,
   MarketCollateralPool,
   MarketContract,
-  MarketContractRegistry
+  MarketContractRegistry,
+  MARKETProtocolConfig,
+  SignedOrder
 } from '@marketprotocol/types';
 
 import {
@@ -14,20 +16,28 @@ import {
   withdrawCollateralAsync
 } from '../src/lib/Collateral';
 
-import { tradeOrderAsync } from '../src/lib/Order';
+import {
+  createOrderHashAsync,
+  createSignedOrderAsync,
+  isValidSignatureAsync,
+  signOrderHashAsync
+} from '../src/lib/Order';
+
 import { constants } from '../src/constants';
 import { Market, Utils } from '../src';
 import { getContractAddress } from './utils';
 
 import { RemainingFillableCalculator } from '../src/order_watcher/RemainingFillableCalculator';
-import { SignedOrder } from '../src/types/Order';
 
 const TRUFFLE_NETWORK_URL = `http://localhost:9545`;
 const TRUFFLE_NETWORK_ID = `4447`;
 
 describe('RemainingFillableCalculator', () => {
   const web3 = new Web3(new Web3.providers.HttpProvider(TRUFFLE_NETWORK_URL));
-  const market: Market = new Market(web3.currentProvider);
+  const config: MARKETProtocolConfig = {
+    networkId: constants.NETWORK_ID_TRUFFLE
+  };
+  let market: Market;
   const orderLifetimeSec: BigNumber = new BigNumber(60); // One minute order lifetime.
   const initialCredit: BigNumber = new BigNumber(1000); // 1000 Tokens initial credit.
 
@@ -52,6 +62,7 @@ describe('RemainingFillableCalculator', () => {
 
   // Test suite setup.
   beforeAll(async () => {
+    market = new Market(web3.currentProvider, config);
     distributionAccount = web3.eth.accounts[0];
     makerAccount = web3.eth.accounts[1];
     takerAccount = web3.eth.accounts[2];
@@ -84,6 +95,23 @@ describe('RemainingFillableCalculator', () => {
       collateralPoolAddress
     );
 
+    // withdraw all existing maker and taker collateral from the pool
+    const makerCollateral: BigNumber = await getUserAccountBalanceAsync(
+      web3.currentProvider,
+      collateralPoolAddress,
+      makerAccount
+    );
+    const takerCollateral: BigNumber = await getUserAccountBalanceAsync(
+      web3.currentProvider,
+      collateralPoolAddress,
+      takerAccount
+    );
+    await withdrawCollateralAsync(web3.currentProvider, collateralPoolAddress, makerCollateral, {
+      from: makerAccount
+    });
+    await withdrawCollateralAsync(web3.currentProvider, collateralPoolAddress, takerCollateral, {
+      from: takerAccount
+    });
     // Both Maker and Taker account need enough tokens for collateral.
     // Send them tokens from Distribution Account.
     await collateralToken
@@ -145,7 +173,7 @@ describe('RemainingFillableCalculator', () => {
     // Be nice and send all collateral back to the distribution account.
   });
 
-  async function createSignedOrderWithFees(
+  async function createSignedOrderAsyncWithFees(
     orderQty: BigNumber,
     makerFee: BigNumber,
     takerFee: BigNumber
@@ -154,10 +182,10 @@ describe('RemainingFillableCalculator', () => {
       orderLibAddress,
       marketContractAddress,
       expirationUnixTimestampSec,
-      distributionAccount,
+      constants.NULL_ADDRESS,
       makerAccount,
       makerFee,
-      takerAccount,
+      constants.NULL_ADDRESS,
       takerFee,
       orderQty,
       new BigNumber(1),
@@ -168,13 +196,43 @@ describe('RemainingFillableCalculator', () => {
   }
 
   it('correctly returns fully fillable amount with zero fee', async () => {
-    const qty = new BigNumber(1);
-    const makerFee = new BigNumber(1);
+    const qty = new BigNumber(10);
+    const makerFee = new BigNumber(0);
     const takerFee = new BigNumber(0);
-    const signedOrder = await createSignedOrderWithFees(qty, makerFee, takerFee);
+    const signedOrder = await createSignedOrderAsync(
+      web3.currentProvider,
+      orderLibAddress,
+      marketContractAddress,
+      expirationUnixTimestampSec,
+      constants.NULL_ADDRESS,
+      makerAccount,
+      makerFee,
+      constants.NULL_ADDRESS,
+      takerFee,
+      qty,
+      new BigNumber(1),
+      qty,
+      Utils.generatePseudoRandomSalt()
+    );
+
+    const orderHash = await createOrderHashAsync(
+      web3.currentProvider,
+      orderLibAddress,
+      signedOrder
+    );
+
+    expect(
+      await isValidSignatureAsync(
+        web3.currentProvider,
+        orderLibAddress,
+        signedOrder,
+        orderHash.toString()
+      )
+    ).toBe(true);
+
     console.log(`Signed Order `, signedOrder);
-    const filledQty = await tradeOrderAsync(web3.currentProvider, signedOrder, qty, {
-      from: distributionAccount,
+    const filledQty = await market.tradeOrderAsync(signedOrder, qty, {
+      from: takerAccount,
       gas: 700000
     });
     console.log(`Filled qty `, filledQty);

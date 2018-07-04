@@ -1,8 +1,6 @@
 import { BigNumber } from 'bignumber.js';
-import { SignedOrder } from '../types/Order';
-import { Market } from '../Market';
+import { SignedOrder } from '@marketprotocol/types';
 import { Provider } from '@0xproject/types';
-import { getCollateralPoolContractAddressAsync } from '../lib/Contract';
 
 /**
  * A calculator thatr returns fillable order qty available to Taker,
