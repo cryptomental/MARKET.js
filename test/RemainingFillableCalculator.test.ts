@@ -70,16 +70,6 @@ describe('RemainingFillableCalculator', () => {
     // Get OrderLib address to be able to create an order.
     orderLibAddress = getContractAddress('OrderLib', TRUFFLE_NETWORK_ID);
 
-    // Set up Market Contract Registry
-    marketContractRegistryAddress = getContractAddress(
-      'MarketContractRegistry',
-      TRUFFLE_NETWORK_ID
-    );
-    marketContractRegistry = await MarketContractRegistry.createAndValidate(
-      web3,
-      marketContractRegistryAddress
-    );
-
     // Set up Market Contract
     marketContractAddress = (await marketContractRegistry.getAddressWhiteList)[0];
     deployedMarketContract = await MarketContract.createAndValidate(web3, marketContractAddress);
