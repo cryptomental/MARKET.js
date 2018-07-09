@@ -43,7 +43,7 @@
     "start": "rollup -c rollup.config.ts -w",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:prod": "npm run lint && npm run build && npm run coverage",
+    "test:prod": "npm run lint && npm run coverage -- test/RemainingFillableCalculator.test.ts",
     "deploy-docs": "ts-node tools/gh-pages-publish",
     "report-coverage": "cat ./coverage/lcov.info | node_modules/.bin/coveralls --verbose",
     "commit": "git-cz",
