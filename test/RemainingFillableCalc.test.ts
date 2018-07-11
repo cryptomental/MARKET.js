@@ -16,6 +16,7 @@ import {
 import { createSignedOrderAsync } from '../src/lib/Order';
 
 import { getContractAddress } from './utils';
+import { RemainingFillableCalculator } from '../src/order_watcher/RemainingFillableCalc';
 
 describe('Remaining Fillable Calculator', async () => {
   let web3;
@@ -240,5 +241,38 @@ describe('Remaining Fillable Calculator', async () => {
     } catch (e) {
       expect(e).toEqual(new Error(MarketError.OrderFilledOrCancelled));
     }
+  });
+
+  it('Checks the remaining fillable', async () => {
+    let remainingFillable: BigNumber;
+
+    fees = new BigNumber(0);
+    const signedOrder: SignedOrder = await createSignedOrderAsync(
+      web3.currentProvider,
+      orderLibAddress,
+      contractAddress,
+      new BigNumber(Math.floor(Date.now() / 1000) + 60 * 60),
+      constants.NULL_ADDRESS,
+      makerAddress,
+      fees,
+      constants.NULL_ADDRESS,
+      fees,
+      new BigNumber(3),
+      price,
+      new BigNumber(3),
+      Utils.generatePseudoRandomSalt()
+    );
+
+    console.log('Order signed');
+
+    const calc = new RemainingFillableCalculator(
+      market,
+      collateralPoolAddress,
+      collateralTokenAddress,
+      signedOrder
+    );
+
+    remainingFillable = await calc.computeRemainingMakerFillable();
+    console.log(remainingFillable);
   });
 });
