@@ -68,12 +68,12 @@ describe('Remaining Fillable Calculator', async () => {
 
   afterEach(async () => {
     // Clean up. Withdraw all maker's and taker's collateral.
-    let makerCollateral = await getUserAccountBalanceAsync(
+    const makerCollateral = await getUserAccountBalanceAsync(
       web3.currentProvider,
       collateralPoolAddress,
       makerAddress
     );
-    let takerCollateral = await getUserAccountBalanceAsync(
+    const takerCollateral = await getUserAccountBalanceAsync(
       web3.currentProvider,
       collateralPoolAddress,
       takerAddress
