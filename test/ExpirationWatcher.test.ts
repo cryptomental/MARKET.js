@@ -31,7 +31,7 @@ describe('ExpirationWatcher', () => {
     marketContractAddress = (await market.marketContractRegistry.getAddressWhiteList)[0];
     currentUnixTimestampSec = Utils.getCurrentUnixTimestampSec();
     makerAccount = web3.eth.accounts[1];
-    jest.setTimeout(20 * 1000); // increase timeout to 10 seconds
+    jest.setTimeout(30 * 1000); // increase timeout to 30 seconds
   });
 
   beforeEach(async () => {

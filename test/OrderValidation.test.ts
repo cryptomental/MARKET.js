@@ -6,7 +6,6 @@ import {
   MarketCollateralPool,
   MarketContract,
   MARKETProtocolConfig,
-  Order,
   SignedOrder
 } from '@marketprotocol/types';
 import { MarketError } from '../src/types';
@@ -15,12 +14,7 @@ import { Market, Utils } from '../src';
 import { constants } from '../src/constants';
 import { depositCollateralAsync } from '../src/lib/Collateral';
 
-import {
-  createOrderHashAsync,
-  createSignedOrderAsync,
-  isValidSignatureAsync,
-  signOrderHashAsync
-} from '../src/lib/Order';
+import { createSignedOrderAsync } from '../src/lib/Order';
 
 import { getContractAddress } from './utils';
 
@@ -45,6 +39,7 @@ describe('Order Validation', async () => {
   let price: BigNumber;
 
   beforeAll(async () => {
+    jest.setTimeout(30000);
     web3 = new Web3(new Web3.providers.HttpProvider('http://localhost:9545'));
     config = { networkId: constants.NETWORK_ID_TRUFFLE };
     market = new Market(web3.currentProvider, config);

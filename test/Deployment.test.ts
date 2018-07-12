@@ -18,6 +18,7 @@ describe('Deployment Tests', () => {
   const market: Market = new Market(web3.currentProvider, config);
 
   it('Deploys a MARKET Contract Correctly', async () => {
+    jest.setTimeout(30000);
     const collateralTokenAddress = getContractAddress(
       'CollateralToken',
       constants.NETWORK_ID_TRUFFLE

@@ -41,6 +41,7 @@ describe('Order', () => {
     orderLibAddress = getContractAddress('OrderLib', constants.NETWORK_ID_TRUFFLE);
     const contractAddresses: string[] = await market.marketContractRegistry.getAddressWhiteList;
     contractAddress = contractAddresses[0];
+    jest.setTimeout(30000);
   });
 
   describe('createSignedOrderAsync', () => {
