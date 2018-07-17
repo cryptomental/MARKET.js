@@ -13,7 +13,7 @@ import {
   withdrawCollateralAsync
 } from '../src/lib/Collateral';
 
-import { createSignedOrderAsync } from '../src/lib/Order';
+import { createOrderHashAsync, createSignedOrderAsync } from '../src/lib/Order';
 
 import { getContractAddress } from './utils';
 import { RemainingFillableCalculator } from '../src/order_watcher/RemainingFillableCalc';
@@ -87,163 +87,8 @@ describe('Remaining Fillable Calculator', async () => {
     });
   });
 
-  it('Checks sufficient collateral balances', async () => {
-    // Withdraw maker's collateral so that balance is not enough to trade
-    await withdrawCollateralAsync(web3.currentProvider, collateralPoolAddress, initialCredit, {
-      from: makerAddress
-    });
-    fees = new BigNumber(0);
-    const signedOrder: SignedOrder = await createSignedOrderAsync(
-      web3.currentProvider,
-      orderLibAddress,
-      contractAddress,
-      new BigNumber(Math.floor(Date.now() / 1000) + 60 * 60),
-      constants.NULL_ADDRESS,
-      makerAddress,
-      fees,
-      constants.NULL_ADDRESS,
-      fees,
-      orderQty,
-      price,
-      orderQty,
-      Utils.generatePseudoRandomSalt()
-    );
-
-    expect.assertions(1);
-    try {
-      await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
-        from: takerAddress,
-        gas: 400000
-      });
-    } catch (e) {
-      expect(e).toEqual(new Error(MarketError.InsufficientCollateralBalance));
-    }
-  });
-
-  it('Checks sufficient MKT balances for fees', async () => {
-    fees = new BigNumber(100);
-    const signedOrder: SignedOrder = await createSignedOrderAsync(
-      web3.currentProvider,
-      orderLibAddress,
-      contractAddress,
-      new BigNumber(Math.floor(Date.now() / 1000) + 60 * 60),
-      constants.NULL_ADDRESS,
-      makerAddress,
-      fees,
-      constants.NULL_ADDRESS,
-      fees,
-      orderQty,
-      price,
-      orderQty,
-      Utils.generatePseudoRandomSalt()
-    );
-
-    expect.assertions(1);
-    try {
-      await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
-        from: takerAddress,
-        gas: 400000
-      });
-    } catch (e) {
-      expect(e).toEqual(new Error(MarketError.InsufficientBalanceForTransfer));
-    }
-  });
-
-  it('Checks taker address as defined in the order is null, or is the caller of traderOrder', async () => {
-    fees = new BigNumber(0);
-    await collateralToken.transferTx(takerAddress, initialCredit).send({ from: deploymentAddress });
-    await collateralToken
-      .approveTx(collateralPoolAddress, initialCredit)
-      .send({ from: takerAddress });
-    await depositCollateralAsync(web3.currentProvider, collateralPoolAddress, initialCredit, {
-      from: takerAddress
-    });
-    const signedOrder: SignedOrder = await createSignedOrderAsync(
-      web3.currentProvider,
-      orderLibAddress,
-      contractAddress,
-      new BigNumber(Math.floor(Date.now() / 1000) + 60 * 60),
-      constants.NULL_ADDRESS,
-      makerAddress,
-      fees,
-      takerAddress,
-      fees,
-      orderQty,
-      price,
-      orderQty,
-      Utils.generatePseudoRandomSalt()
-    );
-
-    expect.assertions(1);
-    try {
-      await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
-        from: makerAddress,
-        gas: 400000
-      });
-    } catch (e) {
-      expect(e).toEqual(new Error(MarketError.InvalidTaker));
-    }
-  });
-
-  it('Checks valid timestamp', async () => {
-    fees = new BigNumber(0);
-    const signedOrder: SignedOrder = await createSignedOrderAsync(
-      web3.currentProvider,
-      orderLibAddress,
-      contractAddress,
-      new BigNumber(1),
-      constants.NULL_ADDRESS,
-      makerAddress,
-      fees,
-      constants.NULL_ADDRESS,
-      fees,
-      orderQty,
-      price,
-      orderQty,
-      Utils.generatePseudoRandomSalt()
-    );
-
-    expect.assertions(1);
-    try {
-      await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
-        from: takerAddress,
-        gas: 400000
-      });
-    } catch (e) {
-      expect(e).toEqual(new Error(MarketError.OrderExpired));
-    }
-  });
-
-  it('Checks the order is not fully filled or fully cancelled', async () => {
-    fees = new BigNumber(0);
-    const signedOrder: SignedOrder = await createSignedOrderAsync(
-      web3.currentProvider,
-      orderLibAddress,
-      contractAddress,
-      new BigNumber(Math.floor(Date.now() / 1000) + 60 * 60),
-      constants.NULL_ADDRESS,
-      makerAddress,
-      fees,
-      constants.NULL_ADDRESS,
-      fees,
-      new BigNumber(0),
-      price,
-      new BigNumber(0),
-      Utils.generatePseudoRandomSalt()
-    );
-
-    expect.assertions(1);
-    try {
-      await market.tradeOrderAsync(signedOrder, new BigNumber(2), {
-        from: takerAddress,
-        gas: 400000
-      });
-    } catch (e) {
-      expect(e).toEqual(new Error(MarketError.OrderFilledOrCancelled));
-    }
-  });
-
   it('Checks the remaining fillable', async () => {
+    jest.setTimeout(30000);
     let remainingFillable: BigNumber;
 
     fees = new BigNumber(0);
@@ -272,7 +117,98 @@ describe('Remaining Fillable Calculator', async () => {
       signedOrder
     );
 
+    let neededCollateral = await market.calculateNeededCollateralAsync(
+      contractAddress,
+      new BigNumber(3),
+      price
+    );
+
+    console.log(`neededCollateral ${neededCollateral}`);
+
+    let currentTakerCollateral = await getUserAccountBalanceAsync(
+      web3.currentProvider,
+      collateralPoolAddress,
+      takerAddress
+    );
+
+    console.log(`currentTakerCollateral ${currentTakerCollateral}`);
+    console.log(`Sending ${neededCollateral.minus(currentTakerCollateral)}`);
+
+    await collateralToken
+      .transferTx(takerAddress, neededCollateral.minus(currentTakerCollateral).times(2))
+      .send({ from: deploymentAddress });
+    await collateralToken
+      .approveTx(collateralPoolAddress, neededCollateral.minus(currentTakerCollateral).times(2))
+      .send({ from: takerAddress });
+    await depositCollateralAsync(
+      web3.currentProvider,
+      collateralPoolAddress,
+      neededCollateral.minus(currentTakerCollateral).times(2),
+      {
+        from: takerAddress
+      }
+    );
+
+    currentTakerCollateral = await getUserAccountBalanceAsync(
+      web3.currentProvider,
+      collateralPoolAddress,
+      takerAddress
+    );
+
+    console.log(`currentTakerCollateral ${currentTakerCollateral}`);
+
+    await collateralToken
+      .transferTx(makerAddress, neededCollateral)
+      .send({ from: deploymentAddress });
+    await collateralToken
+      .approveTx(collateralPoolAddress, neededCollateral)
+      .send({ from: makerAddress });
+    await depositCollateralAsync(web3.currentProvider, collateralPoolAddress, neededCollateral, {
+      from: makerAddress
+    });
+
+    let currentMakerCollateral = await getUserAccountBalanceAsync(
+      web3.currentProvider,
+      collateralPoolAddress,
+      makerAddress
+    );
+
+    console.log(`currentMakerCollateral ${currentMakerCollateral}`);
+
     remainingFillable = await calc.computeRemainingMakerFillable();
-    console.log(remainingFillable);
+    console.log(`remainingFillable ${remainingFillable}`);
+
+    const orderHash = await createOrderHashAsync(
+      web3.currentProvider,
+      orderLibAddress,
+      signedOrder
+    );
+
+    expect(
+      await market.getQtyFilledOrCancelledFromOrderAsync(contractAddress, orderHash.toString())
+    ).toEqual(new BigNumber(0));
+
+    const fillQty = 2;
+    console.log(`Trying to trade`);
+    await market.tradeOrderAsync(signedOrder, new BigNumber(fillQty), {
+      from: takerAddress,
+      gas: 800000
+    });
+
+    expect(
+      await market.getQtyFilledOrCancelledFromOrderAsync(contractAddress, orderHash.toString())
+    ).toEqual(new BigNumber(fillQty));
+
+    expect.assertions(2);
+    try {
+      await market.tradeOrderAsync(signedOrder, new BigNumber(1), {
+        from: takerAddress,
+        gas: 400000
+      });
+    } catch (e) {
+      expect(e).toEqual(new Error(MarketError.OrderFilledOrCancelled));
+    }
+    remainingFillable = await calc.computeRemainingMakerFillable();
+    console.log(`remainingFillable ${remainingFillable}`);
   });
 });

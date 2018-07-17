@@ -174,6 +174,8 @@ export class MarketContractWrapper {
     const takerMktBalance: BigNumber = new BigNumber(
       await erc20ContractWrapper.getBalanceAsync(mktTokenContract.address, taker)
     );
+    console.log(`makerMktBalance ${makerMktBalance}`);
+    console.log(`takerMktBalance ${makerMktBalance}`);
 
     if (makerMktBalance.isLessThan(signedOrder.makerFee)) {
       return Promise.reject<BigNumber | number>(
@@ -214,6 +216,9 @@ export class MarketContractWrapper {
       signedOrder.price
     );
 
+    console.log(`makerCollateralBalance ${makerCollateralBalance} needed ${neededCollateralMaker}`);
+    console.log(`takerCollateralBalance ${takerCollateralBalance} needed ${neededCollateralTaker}`);
+
     if (makerCollateralBalance.isLessThan(neededCollateralMaker)) {
       return Promise.reject<BigNumber | number>(
         new Error(MarketError.InsufficientCollateralBalance)
@@ -246,6 +251,7 @@ export class MarketContractWrapper {
       )
       .send(txParams);
 
+    console.log('txHash ${txHash}');
     const blockNumber: number = Number(this._web3.eth.getTransaction(txHash).blockNumber);
 
     return new Promise<BigNumber | number>((resolve, reject) => {
