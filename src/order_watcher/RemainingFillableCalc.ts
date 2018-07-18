@@ -8,12 +8,9 @@ import { Provider } from '@0xproject/types';
 import { ERC20TokenContractWrapper } from '../contract_wrappers/ERC20TokenContractWrapper';
 import { Market } from '../Market';
 
-import Web3 from 'web3';
-
-import { getUserAccountBalanceAsync } from '../lib/Collateral';
-
 /**
- * This class includes the functionality to calculate remaining amount of the order.
+ * This class includes the functionality to calculate remaining fillable amount of the order.
+ * Amount fillable depends on order, a new one or partially filled and amount of collateral.
  */
 export class RemainingFillableCalculator {
   // region Members
@@ -22,8 +19,8 @@ export class RemainingFillableCalculator {
   // *****************************************************************
   //
   private _market: Market;
-  private _provider: Provider;
   private _signedOrder: SignedOrder;
+  private _signedOrderHash: string;
   private _collateralPoolAddress: string;
   private _collateralTokenAddress: string;
   private _erc20ContractWrapper: ERC20TokenContractWrapper;
@@ -39,13 +36,14 @@ export class RemainingFillableCalculator {
     market: Market,
     collateralPoolAddress: string,
     collateralTokenAddress: string,
-    signedOrder: SignedOrder
+    signedOrder: SignedOrder,
+    signedOrderHash: string
   ) {
     this._market = market;
-    this._provider = market.getProvider();
     this._collateralTokenAddress = collateralTokenAddress;
     this._collateralPoolAddress = collateralPoolAddress;
     this._signedOrder = signedOrder;
+    this._signedOrderHash = signedOrderHash;
     this._erc20ContractWrapper = market.erc20TokenContractWrapper;
   }
   //
@@ -57,55 +55,67 @@ export class RemainingFillableCalculator {
   // ****                     Public Methods                      ****
   // *****************************************************************
 
-  public async computeRemainingMakerFillable(): Promise<BigNumber | null> {
+  public async computeRemainingMakerFillable(): Promise<BigNumber> {
+    let fillableQty: BigNumber;
+
     console.log('+computeRemainingMakerFillable()');
 
-    const makerAvailableCollateral = await this._getAvailableCollateral(this._signedOrder.maker);
-    console.log(
-      `Maker's ${
-        this._signedOrder.maker
-      } available collateral in pool is ${makerAvailableCollateral}`
-    );
-
     const hasAvailableFeeFunds: boolean = await this._hasMakerSufficientFundsForFee();
-
-    console.log(makerAvailableCollateral);
-    console.log(hasAvailableFeeFunds);
 
     if (!hasAvailableFeeFunds) {
       return Promise.reject<BigNumber>(new Error(MarketError.InsufficientBalanceForTransfer));
     }
 
-    const orderHash = await this._market.createOrderHashAsync(
-      this._market.orderLib.address,
-      this._signedOrder
+    const makerAvailableCollateral = await this._getAvailableCollateral(this._signedOrder.maker);
+    console.log(
+      `Maker's ${this._signedOrder.maker} available collateral ${makerAvailableCollateral}`
     );
 
-    const qtyFilledOrCancelled = await this._market.getQtyFilledOrCancelledFromOrderAsync(
+    const neededCollateral = await this._market.calculateNeededCollateralAsync(
       this._signedOrder.contractAddress,
-      orderHash
+      this._signedOrder.orderQty,
+      this._signedOrder.price
     );
 
-    console.log(orderHash);
-    console.log(qtyFilledOrCancelled);
-    console.log(this._signedOrder.orderQty);
-    console.log(this._signedOrder.remainingQty);
+    const alreadyFilledOrCancelled = await this._market.getQtyFilledOrCancelledFromOrderAsync(
+      this._signedOrder.contractAddress,
+      this._signedOrderHash
+    );
 
-    console.log('-computeRemainingMakerFillable()');
+    const remainingToFill = this._signedOrder.orderQty.minus(alreadyFilledOrCancelled);
 
-    return makerAvailableCollateral;
+    fillableQty = makerAvailableCollateral
+      .dividedBy(neededCollateral)
+      .times(this._signedOrder.orderQty);
+
+    return BigNumber.min(fillableQty, remainingToFill);
   }
 
   public async computeRemainingTakerFillable(): Promise<BigNumber | null> {
-    console.log('+computeRemainingTakerFillable()');
+    const makerFillable = await this.computeRemainingMakerFillable();
+
     const takerAvailableCollateral = await this._getAvailableCollateral(this._signedOrder.taker);
+    console.log(
+      `Taker's ${this._signedOrder.maker} available collateral ${takerAvailableCollateral}`
+    );
+
     const hasAvailableFeeFunds: boolean = await this._hasTakerSufficientFundsForFee();
 
     if (!hasAvailableFeeFunds) {
       return Promise.reject<BigNumber>(new Error(MarketError.InsufficientBalanceForTransfer));
     }
-    console.log('-computeRemainingTakerFillable()');
-    return takerAvailableCollateral;
+
+    const neededCollateral = await this._market.calculateNeededCollateralAsync(
+      this._signedOrder.contractAddress,
+      this._signedOrder.orderQty,
+      this._signedOrder.price
+    );
+
+    let takerFillable = takerAvailableCollateral
+      .dividedBy(neededCollateral)
+      .times(this._signedOrder.orderQty);
+
+    return BigNumber.min(makerFillable, takerFillable);
   }
 
   // endregion // Public Methods
@@ -116,13 +126,13 @@ export class RemainingFillableCalculator {
   // *****************************************************************
 
   private async _hasMakerSufficientFundsForFee(): Promise<boolean> {
-    console.log('+_hasMakerSufficientFundsForFee()');
+    // console.log('+_hasMakerSufficientFundsForFee()');
     const makerMktBalance = await this._getAvailableFeeFunds(this._signedOrder.maker);
-    const makerFeeNeeded = this._signedOrder.takerFee;
+    const makerFeeNeeded = this._signedOrder.makerFee;
 
-    console.log(makerMktBalance);
-    console.log(makerFeeNeeded);
-    console.log('-_hasMakerSufficientFundsForFee()');
+    // console.log(makerMktBalance);
+    // console.log(makerFeeNeeded);
+    // console.log('-_hasMakerSufficientFundsForFee()');
     return makerMktBalance >= makerFeeNeeded;
   }
 
@@ -134,25 +144,22 @@ export class RemainingFillableCalculator {
   }
 
   private async _getAvailableFeeFunds(accountAddress: string): Promise<BigNumber> {
-    console.log('+_getAvailableFeeFunds()');
+    // console.log('+_getAvailableFeeFunds()');
     const funds = await this._erc20ContractWrapper.getBalanceAsync(
       this._collateralTokenAddress,
       accountAddress
     );
-    console.log(funds);
-    console.log('-_getAvailableFeeFunds()');
+    // console.log(funds);
+    // console.log('-_getAvailableFeeFunds()');
     return funds;
   }
 
-  private async _getAvailableCollateral(accountAddress: string): Promise<BigNumber | null> {
-    console.log('+_getAvailableCollateral()');
+  private async _getAvailableCollateral(accountAddress: string): Promise<BigNumber> {
     const balance = await this._market.getUserAccountBalanceAsync(
       this._collateralPoolAddress,
       accountAddress
     );
-    console.log(balance);
-    console.log('-_getAvailableCollateral()');
-    return balance;
+    return balance || new BigNumber(0);
   }
   // endregion // Private Methods
 }

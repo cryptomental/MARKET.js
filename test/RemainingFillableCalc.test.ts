@@ -52,18 +52,27 @@ describe('Remaining Fillable Calculator', async () => {
     collateralToken = await ERC20.createAndValidate(web3, collateralTokenAddress);
     collateralPoolAddress = await deployedMarketContract.MARKET_COLLATERAL_POOL_ADDRESS;
     initialCredit = new BigNumber(1e23);
-    orderQty = new BigNumber(100);
+    orderQty = new BigNumber(3);
     price = new BigNumber(100000);
+    jest.setTimeout(30000);
   });
 
   beforeEach(async () => {
-    // Transfer initial credit amount of tokens to maker and deposit as collateral
+    // Transfer initial credit amount of tokens to maker and taker and deposit as collateral
     await collateralToken.transferTx(makerAddress, initialCredit).send({ from: deploymentAddress });
     await collateralToken
       .approveTx(collateralPoolAddress, initialCredit)
       .send({ from: makerAddress });
     await depositCollateralAsync(web3.currentProvider, collateralPoolAddress, initialCredit, {
       from: makerAddress
+    });
+
+    await collateralToken.transferTx(takerAddress, initialCredit).send({ from: deploymentAddress });
+    await collateralToken
+      .approveTx(collateralPoolAddress, initialCredit)
+      .send({ from: takerAddress });
+    await depositCollateralAsync(web3.currentProvider, collateralPoolAddress, initialCredit, {
+      from: takerAddress
     });
   });
 
@@ -87,11 +96,13 @@ describe('Remaining Fillable Calculator', async () => {
     });
   });
 
-  it('Checks the remaining fillable', async () => {
-    jest.setTimeout(30000);
-    let remainingFillable: BigNumber;
-
+  it('Checks the fillable with no fees', async () => {
     fees = new BigNumber(0);
+    let qtyFilledOrCancelled: BigNumber;
+
+    let makerFillable: BigNumber;
+    let takerFillable: BigNumber;
+
     const signedOrder: SignedOrder = await createSignedOrderAsync(
       web3.currentProvider,
       orderLibAddress,
@@ -100,30 +111,43 @@ describe('Remaining Fillable Calculator', async () => {
       constants.NULL_ADDRESS,
       makerAddress,
       fees,
-      constants.NULL_ADDRESS,
+      takerAddress,
       fees,
-      new BigNumber(3),
+      orderQty,
       price,
-      new BigNumber(3),
+      orderQty,
       Utils.generatePseudoRandomSalt()
     );
 
-    console.log('Order signed');
+    const orderHash = await createOrderHashAsync(
+      web3.currentProvider,
+      orderLibAddress,
+      signedOrder
+    );
+
+    console.log(`Order signed, hash ${orderHash}`);
 
     const calc = new RemainingFillableCalculator(
       market,
       collateralPoolAddress,
       collateralTokenAddress,
-      signedOrder
+      signedOrder,
+      orderHash
     );
 
     let neededCollateral = await market.calculateNeededCollateralAsync(
       contractAddress,
-      new BigNumber(3),
+      orderQty,
       price
     );
 
-    console.log(`neededCollateral ${neededCollateral}`);
+    makerFillable = await calc.computeRemainingMakerFillable();
+    takerFillable = await calc.computeRemainingTakerFillable();
+
+    console.log(`Remaining Maker Fillable ${makerFillable}`);
+    console.log(`Remaining Taker Fillable ${takerFillable}`);
+
+    console.log(`Order neededCollateral ${neededCollateral}`);
 
     let currentTakerCollateral = await getUserAccountBalanceAsync(
       web3.currentProvider,
@@ -132,39 +156,15 @@ describe('Remaining Fillable Calculator', async () => {
     );
 
     console.log(`currentTakerCollateral ${currentTakerCollateral}`);
-    console.log(`Sending ${neededCollateral.minus(currentTakerCollateral)}`);
 
     await collateralToken
-      .transferTx(takerAddress, neededCollateral.minus(currentTakerCollateral).times(2))
-      .send({ from: deploymentAddress });
-    await collateralToken
-      .approveTx(collateralPoolAddress, neededCollateral.minus(currentTakerCollateral).times(2))
-      .send({ from: takerAddress });
-    await depositCollateralAsync(
-      web3.currentProvider,
-      collateralPoolAddress,
-      neededCollateral.minus(currentTakerCollateral).times(2),
-      {
-        from: takerAddress
-      }
-    );
-
-    currentTakerCollateral = await getUserAccountBalanceAsync(
-      web3.currentProvider,
-      collateralPoolAddress,
-      takerAddress
-    );
-
-    console.log(`currentTakerCollateral ${currentTakerCollateral}`);
-
-    await collateralToken
-      .transferTx(makerAddress, neededCollateral)
+      .transferTx(takerAddress, neededCollateral)
       .send({ from: deploymentAddress });
     await collateralToken
       .approveTx(collateralPoolAddress, neededCollateral)
-      .send({ from: makerAddress });
+      .send({ from: takerAddress });
     await depositCollateralAsync(web3.currentProvider, collateralPoolAddress, neededCollateral, {
-      from: makerAddress
+      from: takerAddress
     });
 
     let currentMakerCollateral = await getUserAccountBalanceAsync(
@@ -175,20 +175,17 @@ describe('Remaining Fillable Calculator', async () => {
 
     console.log(`currentMakerCollateral ${currentMakerCollateral}`);
 
-    remainingFillable = await calc.computeRemainingMakerFillable();
-    console.log(`remainingFillable ${remainingFillable}`);
+    makerFillable = await calc.computeRemainingMakerFillable();
+    takerFillable = await calc.computeRemainingTakerFillable();
 
-    const orderHash = await createOrderHashAsync(
-      web3.currentProvider,
-      orderLibAddress,
-      signedOrder
-    );
+    console.log(`Remaining Maker Fillable ${makerFillable}`);
+    console.log(`Remaining Taker Fillable ${takerFillable}`);
 
     expect(
       await market.getQtyFilledOrCancelledFromOrderAsync(contractAddress, orderHash.toString())
     ).toEqual(new BigNumber(0));
 
-    const fillQty = 2;
+    const fillQty = 1;
     console.log(`Trying to trade`);
     await market.tradeOrderAsync(signedOrder, new BigNumber(fillQty), {
       from: takerAddress,
@@ -199,16 +196,53 @@ describe('Remaining Fillable Calculator', async () => {
       await market.getQtyFilledOrCancelledFromOrderAsync(contractAddress, orderHash.toString())
     ).toEqual(new BigNumber(fillQty));
 
-    expect.assertions(2);
+    makerFillable = await calc.computeRemainingMakerFillable();
+    takerFillable = await calc.computeRemainingTakerFillable();
+
+    console.log(`After partial fill remaining Maker Fillable ${makerFillable}`);
+    console.log(`After partial fill remaining Taker Fillable ${takerFillable}`);
+
+    // maker deposits 1f/5th of needed collateral to fill the whole order
+    await collateralToken
+      .transferTx(makerAddress, neededCollateral)
+      .send({ from: deploymentAddress });
+    await collateralToken
+      .approveTx(collateralPoolAddress, neededCollateral)
+      .send({ from: makerAddress });
+    await depositCollateralAsync(web3.currentProvider, collateralPoolAddress, new BigNumber(1e22), {
+      from: makerAddress
+    });
+
+    makerFillable = await calc.computeRemainingMakerFillable();
+    takerFillable = await calc.computeRemainingTakerFillable();
+
+    console.log(`Remaining Maker Fillable ${makerFillable}`);
+    console.log(`Remaining Taker Fillable ${takerFillable}`);
+
     try {
-      await market.tradeOrderAsync(signedOrder, new BigNumber(1), {
+      await market.tradeOrderAsync(signedOrder, takerFillable.dividedBy(2), {
         from: takerAddress,
-        gas: 400000
+        gas: 800000
       });
     } catch (e) {
       expect(e).toEqual(new Error(MarketError.OrderFilledOrCancelled));
     }
-    remainingFillable = await calc.computeRemainingMakerFillable();
-    console.log(`remainingFillable ${remainingFillable}`);
+
+    makerFillable = await calc.computeRemainingMakerFillable();
+    takerFillable = await calc.computeRemainingTakerFillable();
+
+    console.log(`Remaining Maker Fillable ${makerFillable}`);
+    console.log(`Remaining Taker Fillable ${takerFillable}`);
+
+    // fill the remaining part
+    try {
+      await market.tradeOrderAsync(signedOrder, takerFillable, {
+        from: takerAddress,
+        gas: 800000
+      });
+    } catch (e) {
+      expect(e).toEqual(new Error(MarketError.OrderFilledOrCancelled));
+    }
+    expect.assertions(2);
   });
 });

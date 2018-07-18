@@ -55,7 +55,7 @@ export async function getUserAccountBalanceAsync(
   try {
     // Retrieve the user's unallocated token balance
     const userUnallocatedTokenBalance = await collateralPool.getUserAccountBalance(userAddress);
-    console.log(`${userAddress} unallocated token balance is ${userUnallocatedTokenBalance}`);
+    // console.log(`${userAddress} unallocated token balance is ${userUnallocatedTokenBalance}`);
     return userUnallocatedTokenBalance;
   } catch (error) {
     console.log(error);

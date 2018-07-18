@@ -251,7 +251,7 @@ export class MarketContractWrapper {
       )
       .send(txParams);
 
-    console.log('txHash ${txHash}');
+    console.log(`txHash ${txHash}`);
     const blockNumber: number = Number(this._web3.eth.getTransaction(txHash).blockNumber);
 
     return new Promise<BigNumber | number>((resolve, reject) => {
