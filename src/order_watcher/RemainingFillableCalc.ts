@@ -57,9 +57,6 @@ export class RemainingFillableCalculator {
 
   public async computeRemainingMakerFillable(): Promise<BigNumber> {
     let fillableQty: BigNumber;
-
-    console.log('+computeRemainingMakerFillable()');
-
     const hasAvailableFeeFunds: boolean = await this._hasMakerSufficientFundsForFee();
 
     if (!hasAvailableFeeFunds) {
@@ -67,10 +64,6 @@ export class RemainingFillableCalculator {
     }
 
     const makerAvailableCollateral = await this._getAvailableCollateral(this._signedOrder.maker);
-    console.log(
-      `Maker's ${this._signedOrder.maker} available collateral ${makerAvailableCollateral}`
-    );
-
     const neededCollateral = await this._market.calculateNeededCollateralAsync(
       this._signedOrder.contractAddress,
       this._signedOrder.orderQty,
@@ -93,12 +86,7 @@ export class RemainingFillableCalculator {
 
   public async computeRemainingTakerFillable(): Promise<BigNumber | null> {
     const makerFillable = await this.computeRemainingMakerFillable();
-
     const takerAvailableCollateral = await this._getAvailableCollateral(this._signedOrder.taker);
-    console.log(
-      `Taker's ${this._signedOrder.maker} available collateral ${takerAvailableCollateral}`
-    );
-
     const hasAvailableFeeFunds: boolean = await this._hasTakerSufficientFundsForFee();
 
     if (!hasAvailableFeeFunds) {
@@ -126,31 +114,24 @@ export class RemainingFillableCalculator {
   // *****************************************************************
 
   private async _hasMakerSufficientFundsForFee(): Promise<boolean> {
-    // console.log('+_hasMakerSufficientFundsForFee()');
     const makerMktBalance = await this._getAvailableFeeFunds(this._signedOrder.maker);
     const makerFeeNeeded = this._signedOrder.makerFee;
 
-    // console.log(makerMktBalance);
-    // console.log(makerFeeNeeded);
-    // console.log('-_hasMakerSufficientFundsForFee()');
-    return makerMktBalance >= makerFeeNeeded;
+    return makerMktBalance.gte(makerFeeNeeded);
   }
 
   private async _hasTakerSufficientFundsForFee(): Promise<boolean> {
     const takerMktBalance = await this._getAvailableFeeFunds(this._signedOrder.taker);
     const takerFeeNeeded = this._signedOrder.takerFee;
 
-    return takerMktBalance >= takerFeeNeeded;
+    return takerMktBalance.gte(takerFeeNeeded);
   }
 
   private async _getAvailableFeeFunds(accountAddress: string): Promise<BigNumber> {
-    // console.log('+_getAvailableFeeFunds()');
     const funds = await this._erc20ContractWrapper.getBalanceAsync(
       this._collateralTokenAddress,
       accountAddress
     );
-    // console.log(funds);
-    // console.log('-_getAvailableFeeFunds()');
     return funds;
   }
 
