@@ -16,3 +16,6 @@ build
 # Ignore JS files
 src/**/*.js
 test/**/*.js
+
+# Ignore generated docs
+docs/**
